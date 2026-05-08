@@ -1,37 +1,65 @@
 <script>
   import { onMount } from 'svelte';
   import { PUBLIC_CAMERA_API_URL } from '$env/static/public';
+  import {
+    ArrowPathIcon,
+    CheckCircleIcon,
+    Cog6ToothIcon,
+    MoonIcon,
+    SignalIcon,
+    SunIcon,
+    VideoCameraIcon
+  } from '@heroicons/svelte/24/outline';
 
   let healthState = 'checking';
   let healthMessage = 'Connecting to camera service';
   let cameras = [];
   let camera = null;
+  let formDirty = false;
+  let healthLoading = false;
   let saveState = 'idle';
   let saveMessage = '';
   let streamKey = 0;
+  let theme = 'dark';
 
   $: streamUrl = `${PUBLIC_CAMERA_API_URL}/stream.mjpg?reload=${streamKey}`;
+  $: themeClass = theme === 'light' ? 'theme-light' : 'theme-dark';
 
-  async function refresh() {
+  async function refreshHealth() {
+    healthLoading = true;
     try {
-      const [healthResponse, configResponse] = await Promise.all([
-        fetch(`${PUBLIC_CAMERA_API_URL}/health`, { cache: 'no-store' }),
-        fetch(`${PUBLIC_CAMERA_API_URL}/config`, { cache: 'no-store' })
-      ]);
+      const healthResponse = await fetch(`${PUBLIC_CAMERA_API_URL}/health`, { cache: 'no-store' });
       const health = await healthResponse.json();
-      const config = await configResponse.json();
 
       healthState = health.state ?? 'unknown';
       healthMessage = health.message ?? 'No status message';
       cameras = health.cameras ?? [];
-      camera = { ...(config.cameras?.[0] ?? defaultCamera()) };
     } catch (error) {
       healthState = 'offline';
       healthMessage = error instanceof Error ? error.message : 'Camera service is offline';
+    } finally {
+      healthLoading = false;
+    }
+  }
+
+  async function loadConfig({ force = false } = {}) {
+    if (formDirty && !force) {
+      return;
+    }
+    try {
+      const configResponse = await fetch(`${PUBLIC_CAMERA_API_URL}/config`, { cache: 'no-store' });
+      const config = await configResponse.json();
+      camera = { ...(config.cameras?.[0] ?? defaultCamera()) };
+      formDirty = false;
+    } catch {
       if (!camera) {
         camera = defaultCamera();
       }
     }
+  }
+
+  async function refreshAll() {
+    await Promise.all([refreshHealth(), loadConfig()]);
   }
 
   async function saveConfig() {
@@ -66,8 +94,9 @@
 
       saveState = 'saved';
       saveMessage = 'Settings applied';
+      formDirty = false;
       streamKey += 1;
-      await refresh();
+      await refreshAll();
     } catch (error) {
       saveState = 'error';
       saveMessage = error instanceof Error ? error.message : 'Unable to save settings';
@@ -76,6 +105,19 @@
 
   function reloadStream() {
     streamKey += 1;
+  }
+
+  function markDirty() {
+    formDirty = true;
+    if (saveState === 'saved') {
+      saveState = 'idle';
+      saveMessage = '';
+    }
+  }
+
+  function toggleTheme() {
+    theme = theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('dcs-lxdg-theme', theme);
   }
 
   function defaultCamera() {
@@ -94,36 +136,51 @@
   }
 
   onMount(() => {
-    refresh();
-    const interval = window.setInterval(refresh, 3000);
+    theme = localStorage.getItem('dcs-lxdg-theme') ?? 'dark';
+    refreshAll();
+    const interval = window.setInterval(refreshHealth, 3000);
     return () => window.clearInterval(interval);
   });
 </script>
 
 <svelte:head>
-  <title>OpenClaw Camera Preview</title>
+  <title>DCS-LXDG Camera Preview</title>
 </svelte:head>
 
-<main class="min-h-screen bg-zinc-950 text-zinc-100">
-  <header class="border-b border-zinc-800 bg-zinc-900">
-    <div class="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4">
+<main class={`oc-page ${themeClass}`}>
+  <header class="oc-header">
+    <div class="oc-header-inner">
       <div>
-        <h1 class="text-xl font-semibold tracking-normal">{camera?.label ?? 'Camera Preview'}</h1>
-        <p class="mt-1 text-sm text-zinc-400">{PUBLIC_CAMERA_API_URL}</p>
+        <h1 class="oc-title flex items-center gap-2">
+          <VideoCameraIcon class="h-6 w-6 text-cyan-400" />
+          DCS-LXDG {camera?.label ?? 'Camera Preview'}
+        </h1>
+        <p class="oc-muted mt-1 text-sm">{PUBLIC_CAMERA_API_URL}</p>
       </div>
       <div class="flex items-center gap-3">
         <span
-          class="h-3 w-3 rounded-full"
+          class="oc-status-dot"
           class:bg-emerald-400={healthState === 'ready'}
           class:bg-amber-400={healthState === 'checking' || healthState === 'unknown'}
           class:bg-red-500={healthState === 'error' || healthState === 'offline'}
         ></span>
-        <span class="text-sm text-zinc-300">{healthState}</span>
+        <span class="text-sm text-slate-300">{healthState}</span>
+        {#if healthLoading}
+          <span class="oc-spinner"></span>
+        {/if}
+        <button class="oc-button" type="button" on:click={toggleTheme} aria-label="Toggle theme">
+          {#if theme === 'dark'}
+            <SunIcon class="h-4 w-4" />
+          {:else}
+            <MoonIcon class="h-4 w-4" />
+          {/if}
+        </button>
         <button
-          class="rounded border border-zinc-700 px-3 py-2 text-sm hover:border-zinc-500 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+          class="oc-button"
           type="button"
           on:click={reloadStream}
         >
+          <ArrowPathIcon class="h-4 w-4" />
           Reload
         </button>
       </div>
@@ -141,20 +198,29 @@
       {/key}
     </div>
 
-    <aside class="rounded border border-zinc-800 bg-zinc-900 p-4">
+    <aside class="oc-panel">
       <div class="flex items-center justify-between gap-3">
-        <h2 class="text-base font-medium">Camera Settings</h2>
-        <span class="text-xs text-zinc-400">{cameras[0]?.inspection_state ?? 'inspection disabled'}</span>
+        <h2 class="flex items-center gap-2 text-base font-medium">
+          <Cog6ToothIcon class="h-5 w-5 text-cyan-400" />
+          Camera Settings
+        </h2>
+        <span class="text-xs text-slate-400">{cameras[0]?.inspection_state ?? 'inspection disabled'}</span>
       </div>
 
-      <p class="mt-3 text-sm leading-6 text-zinc-300">{healthMessage}</p>
+      <p class="mt-3 flex items-center gap-2 text-sm leading-6 text-slate-300">
+        <SignalIcon class="h-4 w-4 text-cyan-400" />
+        {healthMessage}
+      </p>
+      {#if formDirty}
+        <p class="oc-alert-warning mt-3">You have unsaved camera settings.</p>
+      {/if}
       {#if cameras[0]?.last_error}
-        <p class="mt-3 rounded border border-red-900 bg-red-950 px-3 py-2 text-sm text-red-100">
+        <p class="oc-alert-error mt-3">
           {cameras[0].last_error}
         </p>
       {/if}
       {#if cameras[0]?.inspection_last_error}
-        <p class="mt-3 rounded border border-amber-900 bg-amber-950 px-3 py-2 text-sm text-amber-100">
+        <p class="oc-alert-warning mt-3">
           {cameras[0].inspection_last_error}
         </p>
       {/if}
@@ -162,107 +228,122 @@
       {#if camera}
         <form class="mt-5 space-y-4" on:submit|preventDefault={saveConfig}>
           <label class="block text-sm">
-            <span class="text-zinc-400">Camera ID</span>
+            <span class="text-slate-400">Camera ID</span>
             <input
-              class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+              class="oc-input"
               bind:value={camera.id}
+              on:input={markDirty}
             />
           </label>
 
           <label class="block text-sm">
-            <span class="text-zinc-400">Camera label</span>
+            <span class="text-slate-400">Camera label</span>
             <input
-              class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+              class="oc-input"
               bind:value={camera.label}
+              on:input={markDirty}
             />
           </label>
 
           <label class="block text-sm">
-            <span class="text-zinc-400">Device path</span>
+            <span class="text-slate-400">Device path</span>
             <input
-              class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+              class="oc-input"
               bind:value={camera.device}
+              on:input={markDirty}
             />
           </label>
 
           <div class="grid grid-cols-2 gap-3">
             <label class="block text-sm">
-              <span class="text-zinc-400">Width</span>
+              <span class="text-slate-400">Width</span>
               <input
                 type="number"
                 min="1"
-                class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+                class="oc-input"
                 bind:value={camera.width}
+                on:input={markDirty}
               />
             </label>
             <label class="block text-sm">
-              <span class="text-zinc-400">Height</span>
+              <span class="text-slate-400">Height</span>
               <input
                 type="number"
                 min="1"
-                class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+                class="oc-input"
                 bind:value={camera.height}
+                on:input={markDirty}
               />
             </label>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <label class="block text-sm">
-              <span class="text-zinc-400">FPS</span>
+              <span class="text-slate-400">FPS</span>
               <input
                 type="number"
                 min="1"
                 step="0.1"
-                class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+                class="oc-input"
                 bind:value={camera.fps}
+                on:input={markDirty}
               />
             </label>
             <label class="block text-sm">
-              <span class="text-zinc-400">JPEG quality</span>
+              <span class="text-slate-400">JPEG quality</span>
               <input
                 type="number"
                 min="1"
                 max="100"
-                class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+                class="oc-input"
                 bind:value={camera.jpeg_quality}
+                on:input={markDirty}
               />
             </label>
           </div>
 
-          <label class="flex items-center gap-3 text-sm text-zinc-300">
-            <input class="h-4 w-4 accent-cyan-500" type="checkbox" bind:checked={camera.enabled} />
+          <label class="oc-checkbox-label">
+            <input class="oc-checkbox" type="checkbox" bind:checked={camera.enabled} on:change={markDirty} />
             Camera enabled
           </label>
 
-          <label class="flex items-center gap-3 text-sm text-zinc-300">
+          <label class="oc-checkbox-label">
             <input
-              class="h-4 w-4 accent-cyan-500"
+              class="oc-checkbox"
               type="checkbox"
               bind:checked={camera.inspection_enabled}
+              on:change={markDirty}
             />
             Stream to inspection service
           </label>
 
           <label class="block text-sm">
-            <span class="text-zinc-400">Inspection target</span>
+            <span class="text-slate-400">Inspection target</span>
             <input
               placeholder="192.168.1.50:50052"
-              class="mt-1 w-full rounded border border-zinc-700 bg-zinc-950 px-3 py-2 text-zinc-100 focus:border-cyan-500 focus:outline-none"
+              class="oc-input"
               bind:value={camera.inspection_service_target}
+              on:input={markDirty}
             />
           </label>
 
           <button
-            class="w-full rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400"
+            class="oc-button-primary w-full"
             type="submit"
+            disabled={saveState === 'saving'}
           >
-            Apply Settings
+            {#if saveState === 'saving'}
+              <span class="h-4 w-4 animate-spin rounded-full border-2 border-cyan-800 border-t-white"></span>
+            {:else}
+              <CheckCircleIcon class="h-4 w-4" />
+            {/if}
+            {saveState === 'saving' ? 'Applying Settings' : 'Apply Settings'}
           </button>
 
           {#if saveMessage}
             <p
               class="text-sm"
-              class:text-zinc-400={saveState === 'saving'}
+              class:text-slate-400={saveState === 'saving'}
               class:text-emerald-300={saveState === 'saved'}
               class:text-red-300={saveState === 'error'}
             >
