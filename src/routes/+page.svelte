@@ -1,15 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { PUBLIC_CAMERA_API_URL } from '$env/static/public';
-  import {
-    ArrowPathIcon,
-    CheckCircleIcon,
-    Cog6ToothIcon,
-    MoonIcon,
-    SignalIcon,
-    SunIcon,
-    VideoCameraIcon
-  } from '@heroicons/svelte/24/outline';
+  import HeroIcon from '$lib/HeroIcon.svelte';
 
   let healthState = 'checking';
   let healthMessage = 'Connecting to camera service';
@@ -152,7 +144,7 @@
     <div class="oc-header-inner">
       <div>
         <h1 class="oc-title flex items-center gap-2">
-          <VideoCameraIcon class="h-6 w-6 text-cyan-400" />
+          <HeroIcon name="video-camera" className="h-6 w-6 text-cyan-400" />
           DCS-LXDG {camera?.label ?? 'Camera Preview'}
         </h1>
         <p class="oc-muted mt-1 text-sm">{PUBLIC_CAMERA_API_URL}</p>
@@ -170,9 +162,9 @@
         {/if}
         <button class="oc-button" type="button" on:click={toggleTheme} aria-label="Toggle theme">
           {#if theme === 'dark'}
-            <SunIcon class="h-4 w-4" />
+            <HeroIcon name="sun" className="h-4 w-4" />
           {:else}
-            <MoonIcon class="h-4 w-4" />
+            <HeroIcon name="moon" className="h-4 w-4" />
           {/if}
         </button>
         <button
@@ -180,7 +172,7 @@
           type="button"
           on:click={reloadStream}
         >
-          <ArrowPathIcon class="h-4 w-4" />
+          <HeroIcon name="arrow-path" className="h-4 w-4" />
           Reload
         </button>
       </div>
@@ -201,14 +193,14 @@
     <aside class="oc-panel">
       <div class="flex items-center justify-between gap-3">
         <h2 class="flex items-center gap-2 text-base font-medium">
-          <Cog6ToothIcon class="h-5 w-5 text-cyan-400" />
+          <HeroIcon name="cog-6-tooth" className="h-5 w-5 text-cyan-400" />
           Camera Settings
         </h2>
         <span class="text-xs text-slate-400">{cameras[0]?.inspection_state ?? 'inspection disabled'}</span>
       </div>
 
       <p class="mt-3 flex items-center gap-2 text-sm leading-6 text-slate-300">
-        <SignalIcon class="h-4 w-4 text-cyan-400" />
+        <HeroIcon name="signal" className="h-4 w-4 text-cyan-400" />
         {healthMessage}
       </p>
       {#if formDirty}
@@ -335,7 +327,7 @@
             {#if saveState === 'saving'}
               <span class="h-4 w-4 animate-spin rounded-full border-2 border-cyan-800 border-t-white"></span>
             {:else}
-              <CheckCircleIcon class="h-4 w-4" />
+              <HeroIcon name="check-circle" className="h-4 w-4" />
             {/if}
             {saveState === 'saving' ? 'Applying Settings' : 'Apply Settings'}
           </button>
