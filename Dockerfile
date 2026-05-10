@@ -1,11 +1,16 @@
 FROM oven/bun:1.1.17
 
-WORKDIR /app
+ARG SHARED_REPO=shared
 
-COPY package.json ./
+WORKDIR /workspace
+
+COPY ${SHARED_REPO}/ui ./shared/ui
+COPY vision/robot-vision-streaming-ui/package.json ./vision/robot-vision-streaming-ui/
+
+WORKDIR /workspace/vision/robot-vision-streaming-ui
 RUN bun install
 
-COPY . ./
+COPY vision/robot-vision-streaming-ui ./
 
 EXPOSE 5173
 
