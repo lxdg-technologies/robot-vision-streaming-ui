@@ -16,6 +16,9 @@
 
   $: streamUrl = `${PUBLIC_CAMERA_API_URL}/stream.mjpg?reload=${streamKey}`;
   $: themeClass = theme === 'light' ? 'theme-light' : 'theme-dark';
+  $: currentCameraStatus = cameras[0] ?? null;
+  $: streamStatusText = formatStreamStatus(currentCameraStatus);
+  $: streamIsStalled = currentCameraStatus?.health === 'stale' || currentCameraStatus?.health === 'not_streaming';
 
   async function refreshHealth() {
     healthLoading = true;
@@ -112,6 +115,19 @@
     localStorage.setItem('dcs-lxdg-theme', theme);
   }
 
+  function formatStreamStatus(status) {
+    if (!status) {
+      return 'No camera status received yet';
+    }
+
+    if (status.latest_frame_index === null || status.latest_frame_index === undefined) {
+      return `Camera ${status.health}`;
+    }
+
+    const age = Number(status.latest_frame_age_seconds ?? 0).toFixed(1);
+    return `Frame #${status.latest_frame_index} · ${age}s old · ${status.health}`;
+  }
+
   function defaultCamera() {
     return {
       id: 'camera-0',
@@ -153,7 +169,7 @@
         <span
           class="oc-status-dot"
           class:bg-emerald-400={healthState === 'ready'}
-          class:bg-amber-400={healthState === 'checking' || healthState === 'unknown'}
+          class:bg-amber-400={healthState === 'checking' || healthState === 'unknown' || healthState === 'degraded'}
           class:bg-red-500={healthState === 'error' || healthState === 'offline'}
         ></span>
         <span class="text-sm text-slate-300">{healthState}</span>
@@ -181,6 +197,12 @@
 
   <section class="mx-auto grid max-w-7xl gap-4 px-6 py-5 lg:grid-cols-[1fr_360px]">
     <div class="overflow-hidden rounded border border-zinc-800 bg-black">
+      <div class="flex items-center justify-between border-b border-zinc-800 px-3 py-2 text-xs text-slate-300">
+        <span>{streamStatusText}</span>
+        {#if streamIsStalled}
+          <span class="rounded bg-amber-500/20 px-2 py-1 text-amber-200">stream stale</span>
+        {/if}
+      </div>
       {#key streamKey}
         <img
           class="block aspect-video h-auto max-h-[calc(100vh-150px)] w-full object-contain"
