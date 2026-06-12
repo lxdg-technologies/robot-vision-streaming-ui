@@ -11,6 +11,9 @@
   let healthLoading = false;
   let saveState = 'idle';
   let saveMessage = '';
+  let captureState = 'idle';
+  let captureMessage = '';
+  let capturePath = '';
   let streamKey = 0;
   let theme = 'dark';
 
@@ -102,6 +105,36 @@
     streamKey += 1;
   }
 
+  async function captureImage() {
+    captureState = 'capturing';
+    captureMessage = 'Capturing latest frame';
+    capturePath = '';
+
+    try {
+      const params = new URLSearchParams({
+        procedure: 'gripper-detection',
+        version: '0.1.0',
+        bucket: 'manual'
+      });
+      const response = await fetch(`${PUBLIC_CAMERA_API_URL}/capture?${params.toString()}`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const result = await response.json();
+      captureState = 'captured';
+      capturePath = result.path ?? '';
+      captureMessage = result.path ? `Saved ${result.path}` : 'Image captured';
+      await refreshHealth();
+    } catch (error) {
+      captureState = 'error';
+      captureMessage = error instanceof Error ? error.message : 'Unable to capture image';
+    }
+  }
+
   function markDirty() {
     formDirty = true;
     if (saveState === 'saved') {
@@ -186,6 +219,19 @@
         <button
           class="oc-button"
           type="button"
+          on:click={captureImage}
+          disabled={captureState === 'capturing'}
+        >
+          {#if captureState === 'capturing'}
+            <span class="oc-spinner"></span>
+          {:else}
+            <HeroIcon name="camera" className="h-4 w-4" />
+          {/if}
+          {captureState === 'capturing' ? 'Capturing' : 'Capture Image'}
+        </button>
+        <button
+          class="oc-button"
+          type="button"
           on:click={reloadStream}
         >
           <HeroIcon name="arrow-path" className="h-4 w-4" />
@@ -203,6 +249,17 @@
           <span class="rounded bg-amber-500/20 px-2 py-1 text-amber-200">stream stale</span>
         {/if}
       </div>
+      {#if captureMessage}
+        <div
+          class="border-b border-zinc-800 px-3 py-2 text-xs"
+          class:text-slate-300={captureState === 'capturing'}
+          class:text-emerald-300={captureState === 'captured'}
+          class:text-red-300={captureState === 'error'}
+          title={capturePath}
+        >
+          {captureMessage}
+        </div>
+      {/if}
       {#key streamKey}
         <img
           class="block aspect-video h-auto max-h-[calc(100vh-150px)] w-full object-contain"
