@@ -2,12 +2,13 @@
 
 ## Required Shared Reading
 
-Before making changes in this repository, Claude must read and follow the shared robot repository docs:
+Before making changes in any robot repository, Claude must read and follow the canonical shared robot repository docs on GitHub:
 
-- `../../../robot-shared/AGENTS.md`
-- `../../../robot-shared/ARCHITECTURE.md`
-- `../../../robot-shared/DEPLOYMENT.md`
+- https://github.com/lxdg-technologies/robot-shared/blob/main/AGENTS.md
+- https://github.com/lxdg-technologies/robot-shared/blob/main/ARCHITECTURE.md
+- https://github.com/lxdg-technologies/robot-shared/blob/main/DEPLOYMENT.md
 
 These shared repository docs are mandatory context for every Claude session. Do not treat them as optional reference material.
 
-Also read this repository's local `shared/` docs when present and follow the stricter instruction when documents differ.
+If a local `robot-shared` checkout or `shared/` submodule is present, Claude may use it as a convenience only after confirming it points to the same GitHub repository and current intended revision. When in doubt, use the GitHub URLs above.
+
