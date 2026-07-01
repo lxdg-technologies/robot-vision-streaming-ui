@@ -6,6 +6,6 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
-    allowedHosts: ["robot-controller"]
+    allowedHosts: ["robot-controller", "robot-controller.tail00aec2.ts.net"]
   }
 });
