@@ -48,8 +48,8 @@ jobs:
           set -euo pipefail
           if [ -f .gitmodules ]; then
             test -n "${SUBMODULE_TOKEN}" || { echo "GH_SUBMODULE_TOKEN is required" >&2; exit 1; }
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
             git submodule sync --recursive
             git submodule update --init --recursive
           fi

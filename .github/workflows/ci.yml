@@ -69,8 +69,8 @@ jobs:
           set -euo pipefail
           if [ -f .gitmodules ]; then
             test -n "${SUBMODULE_TOKEN}" || { echo "GH_SUBMODULE_TOKEN is required" >&2; exit 1; }
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
             git submodule sync --recursive
             git submodule update --init --recursive
           fi
@@ -81,7 +81,8 @@ jobs:
           python3 -m pip install -r requirements.txt
           python3 -m pip install pytest
           if [ -d shared/proto ] && [ -d src/lib/grpc ]; then
-            python3 -m grpc_tools.protoc -I shared/proto --python_out=src/lib/grpc --grpc_python_out=src/lib/grpc shared/proto/*.proto
+            mapfile -t PROTOS < <(find shared/proto -maxdepth 1 -name '*.proto' ! -name 'orchestration.proto' -print | sort)
+            python3 -m grpc_tools.protoc -I shared/proto --python_out=src/lib/grpc --grpc_python_out=src/lib/grpc "${PROTOS[@]}"
           fi
           PYTHONPATH="${PWD}/src:${PWD}/src/lib/grpc:${PYTHONPATH:-}" python3 -m pytest
       - name: Set up Bun
@@ -109,8 +110,8 @@ jobs:
           set -euo pipefail
           if [ -f .gitmodules ]; then
             test -n "${SUBMODULE_TOKEN}" || { echo "GH_SUBMODULE_TOKEN is required" >&2; exit 1; }
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
-            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global --add url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
             git submodule sync --recursive
             git submodule update --init --recursive
           fi
