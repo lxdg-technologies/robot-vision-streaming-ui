@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: Version increased
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compare release version with main
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin "${BASE_REF}" --depth=1
+          read_version() {
+            if [ -f package.json ]; then
+              node -e "const p=require('./package.json'); if (!p.version) process.exit(1); console.log(p.version)"
+            elif [ -f VERSION ]; then
+              tr -d '[:space:]' < VERSION
+            else
+              echo "Repository must contain package.json with version or VERSION." >&2
+              exit 1
+            fi
+          }
+          HEAD_VERSION=$(read_version)
+          if git cat-file -e "origin/${BASE_REF}:package.json" 2>/dev/null; then
+            BASE_VERSION=$(git show "origin/${BASE_REF}:package.json" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version||''))")
+          elif git cat-file -e "origin/${BASE_REF}:VERSION" 2>/dev/null; then
+            BASE_VERSION=$(git show "origin/${BASE_REF}:VERSION" | tr -d '[:space:]')
+          else
+            BASE_VERSION=0.0.0
+          fi
+          python3 - "${BASE_VERSION}" "${HEAD_VERSION}" <<'PY'
+          import re, sys
+          base, head = sys.argv[1:]
+          pattern = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+          def parse(value):
+              match = pattern.fullmatch(value)
+              if not match:
+                  raise SystemExit(f"Invalid semantic version: {value!r}")
+              return tuple(map(int, match.groups()))
+          if parse(head) <= parse(base):
+              raise SystemExit(f"Version must increase above {base}; got {head}")
+          print(f"Version bump OK: {base} -> {head}")
+          PY
+
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Checkout shared submodule
+        env:
+          SUBMODULE_TOKEN: ${{ secrets.GH_SUBMODULE_TOKEN || secrets.ROBOT_SHARED_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -f .gitmodules ]; then
+            test -n "${SUBMODULE_TOKEN}" || { echo "GH_SUBMODULE_TOKEN is required" >&2; exit 1; }
+            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            git submodule sync --recursive
+            git submodule update --init --recursive
+          fi
+      - name: Run Python tests
+        if: ${{ hashFiles('requirements.txt') != '' }}
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+          python3 -m pip install pytest
+          if [ -d shared/proto ] && [ -d src/lib/grpc ]; then
+            python3 -m grpc_tools.protoc -I shared/proto --python_out=src/lib/grpc --grpc_python_out=src/lib/grpc shared/proto/*.proto
+          fi
+          PYTHONPATH="${PWD}/src:${PWD}/src/lib/grpc:${PYTHONPATH:-}" python3 -m pytest
+      - name: Set up Bun
+        if: ${{ hashFiles('package.json') != '' }}
+        uses: oven-sh/setup-bun@v2
+      - name: Run UI checks and tests
+        if: ${{ hashFiles('package.json') != '' }}
+        run: |
+          bun install
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.check ? 0 : 1)"; then bun run check; fi
+          if node -e "const p=require('./package.json'); process.exit(p.scripts?.test ? 0 : 1)"; then bun run test; fi
+
+  container:
+    name: Container build
+    needs: [tests]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Checkout shared submodule
+        env:
+          SUBMODULE_TOKEN: ${{ secrets.GH_SUBMODULE_TOKEN || secrets.ROBOT_SHARED_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -f .gitmodules ]; then
+            test -n "${SUBMODULE_TOKEN}" || { echo "GH_SUBMODULE_TOKEN is required" >&2; exit 1; }
+            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "https://github.com/"
+            git config --global url."https://x-access-token:${SUBMODULE_TOKEN}@github.com/".insteadOf "git@github.com:"
+            git submodule sync --recursive
+            git submodule update --init --recursive
+          fi
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve build metadata
+        id: build-meta
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          build-args: |
+            GIT_SHA_SHORT=${{ steps.build-meta.outputs.short_sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
