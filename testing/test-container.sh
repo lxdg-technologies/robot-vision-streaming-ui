@@ -28,6 +28,7 @@ html=$(curl \
   --silent \
   --show-error \
   --retry 15 \
+  --retry-all-errors \
   --retry-connrefused \
   --retry-delay 1 \
   http://127.0.0.1:5173/)
