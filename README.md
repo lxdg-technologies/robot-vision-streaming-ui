@@ -19,6 +19,8 @@ bun run dev --host 0.0.0.0
 
 The unit tests exercise the camera API mutation boundary with an injected fetch implementation. They never contact a camera, service, or production host. Invalid dimensions, frame rates, quality values, and device paths are rejected before a request can be sent.
 
+CI also starts the built production container as its non-root runtime user and checks that a sentinel `PUBLIC_CAMERA_API_URL` appears in the rendered page. This covers the image entrypoint, port, permissions, and runtime environment injection without contacting the configured URL.
+
 ```bash
 bun install --frozen-lockfile
 bun run ci

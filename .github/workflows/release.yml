@@ -63,6 +63,10 @@ jobs:
           node -e "const p=require('./package.json'); const missing=['check','test','build','ci'].filter(name => !p.scripts?.[name]); if (missing.length) { console.error('Missing required scripts: ' + missing.join(', ')); process.exit(1); }"
           bun install --frozen-lockfile
           bun run ci
+      - name: Build and smoke-test release container
+        run: |
+          docker build --tag robot-vision-streaming-ui:release-smoke .
+          testing/test-container.sh robot-vision-streaming-ui:release-smoke
       - uses: docker/setup-buildx-action@v3
       - name: Resolve build metadata
         id: build-meta
