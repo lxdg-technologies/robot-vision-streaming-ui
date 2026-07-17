@@ -15,6 +15,15 @@ bun install
 bun run dev --host 0.0.0.0
 ```
 
+## Validation
+
+The unit tests exercise the camera API mutation boundary with an injected fetch implementation. They never contact a camera, service, or production host. Invalid dimensions, frame rates, quality values, and device paths are rejected before a request can be sent.
+
+```bash
+bun install --frozen-lockfile
+bun run ci
+```
+
 ## Docker
 
 Use the parent `vision/docker-compose.yml`:
@@ -31,6 +40,8 @@ This starts two camera streaming services and two preview UIs:
 - Camera 2 stream API: `http://localhost:10002`
 - Camera 1 UI: `http://localhost:10081`
 - Camera 2 UI: `http://localhost:10082`
+
+The production image builds the SvelteKit application with the Node adapter and serves the generated application on port `5173`; it does not run the Vite development server. `PUBLIC_CAMERA_API_URL` remains a runtime environment setting. Build the image with this repository as the Docker build context so the pinned `shared` submodule is included.
 
 Each UI talks to one single-camera image streaming service. The inspection service is behind the separate `inspection` Compose profile.
 
