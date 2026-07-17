@@ -1,4 +1,4 @@
-import lxdgUi from '../../shared/ui/tailwind.preset.js';
+import lxdgUi from './shared/ui/tailwind.preset.js';
 
 /** @type {import('tailwindcss').Config} */
 export default {

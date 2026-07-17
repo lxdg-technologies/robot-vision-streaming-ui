@@ -1,7 +1,18 @@
 <script>
   import { onMount } from 'svelte';
-  import { PUBLIC_CAMERA_API_URL } from '$env/static/public';
+  import { env } from '$env/dynamic/public';
   import HeroIcon from '$lib/HeroIcon.svelte';
+  import {
+    buildStreamUrl,
+    captureLatestImage,
+    defaultCamera,
+    fetchCameraConfig,
+    fetchCameraHealth,
+    normalizeCameraApiUrl,
+    saveCameraConfig
+  } from '$lib/camera-api.js';
+
+  const cameraApiUrl = normalizeCameraApiUrl(env.PUBLIC_CAMERA_API_URL);
 
   let healthState = 'checking';
   let healthMessage = 'Connecting to camera service';
@@ -17,7 +28,7 @@
   let streamKey = 0;
   let theme = 'dark';
 
-  $: streamUrl = `${PUBLIC_CAMERA_API_URL}/stream.mjpg?reload=${streamKey}`;
+  $: streamUrl = buildStreamUrl(cameraApiUrl, streamKey);
   $: themeClass = theme === 'light' ? 'theme-light' : 'theme-dark';
   $: currentCameraStatus = cameras[0] ?? null;
   $: streamStatusText = formatStreamStatus(currentCameraStatus);
@@ -26,8 +37,7 @@
   async function refreshHealth() {
     healthLoading = true;
     try {
-      const healthResponse = await fetch(`${PUBLIC_CAMERA_API_URL}/health`, { cache: 'no-store' });
-      const health = await healthResponse.json();
+      const health = await fetchCameraHealth(fetch, cameraApiUrl);
 
       healthState = health.state ?? 'unknown';
       healthMessage = health.message ?? 'No status message';
@@ -45,8 +55,7 @@
       return;
     }
     try {
-      const configResponse = await fetch(`${PUBLIC_CAMERA_API_URL}/config`, { cache: 'no-store' });
-      const config = await configResponse.json();
+      const config = await fetchCameraConfig(fetch, cameraApiUrl);
       camera = { ...(config.cameras?.[0] ?? defaultCamera()) };
       formDirty = false;
     } catch {
@@ -67,28 +76,8 @@
 
     saveState = 'saving';
     saveMessage = 'Saving camera settings';
-    const payload = {
-      cameras: [
-        {
-          ...camera,
-          width: Number(camera.width),
-          height: Number(camera.height),
-          fps: Number(camera.fps),
-          jpeg_quality: Number(camera.jpeg_quality)
-        }
-      ]
-    };
-
     try {
-      const response = await fetch(`${PUBLIC_CAMERA_API_URL}/config`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
+      await saveCameraConfig(fetch, cameraApiUrl, camera);
 
       saveState = 'saved';
       saveMessage = 'Settings applied';
@@ -111,20 +100,7 @@
     capturePath = '';
 
     try {
-      const params = new URLSearchParams({
-        procedure: 'gripper-detection',
-        version: '0.1.0',
-        bucket: 'manual'
-      });
-      const response = await fetch(`${PUBLIC_CAMERA_API_URL}/capture?${params.toString()}`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        throw new Error(await response.text());
-      }
-
-      const result = await response.json();
+      const result = await captureLatestImage(fetch, cameraApiUrl);
       captureState = 'captured';
       capturePath = result.path ?? '';
       captureMessage = result.path ? `Saved ${result.path}` : 'Image captured';
@@ -161,21 +137,6 @@
     return `Frame #${status.latest_frame_index} · ${age}s old · ${status.health}`;
   }
 
-  function defaultCamera() {
-    return {
-      id: 'camera-0',
-      label: 'Camera 0',
-      device: '/dev/video0',
-      width: 640,
-      height: 480,
-      fps: 10,
-      jpeg_quality: 85,
-      enabled: true,
-      inspection_enabled: false,
-      inspection_service_target: ''
-    };
-  }
-
   onMount(() => {
     theme = localStorage.getItem('dcs-lxdg-theme') ?? 'dark';
     refreshAll();
@@ -196,7 +157,7 @@
           <HeroIcon name="video-camera" className="h-6 w-6 text-cyan-400" />
           DCS-LXDG {camera?.label ?? 'Camera Preview'}
         </h1>
-        <p class="oc-muted mt-1 text-sm">{PUBLIC_CAMERA_API_URL}</p>
+        <p class="oc-muted mt-1 text-sm">{cameraApiUrl}</p>
       </div>
       <div class="flex items-center gap-3">
         <span
