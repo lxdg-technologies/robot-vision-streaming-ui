@@ -16,6 +16,7 @@
 
   let healthState = 'checking';
   let healthMessage = 'Connecting to camera service';
+  let serviceVersion = '-';
   let cameras = [];
   let camera = null;
   let formDirty = false;
@@ -41,6 +42,7 @@
 
       healthState = health.state ?? 'unknown';
       healthMessage = health.message ?? 'No status message';
+      serviceVersion = health.version ? `v${String(health.version).replace(/^v/, '')}` : '-';
       cameras = health.cameras ?? [];
     } catch (error) {
       healthState = 'offline';
@@ -386,4 +388,8 @@
       {/if}
     </aside>
   </section>
+
+  <div class="oc-version-badge" aria-label="Dashboard and service versions">
+    UI {import.meta.env.VITE_APP_VERSION ?? 'dev'} · Service {serviceVersion}
+  </div>
 </main>

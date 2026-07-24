@@ -24,19 +24,15 @@ jobs:
           set -euo pipefail
           git fetch --no-tags origin "${BASE_REF}" --depth=1
           read_version() {
-            if [ -f package.json ]; then
-              node -e "const p=require('./package.json'); if (!p.version) process.exit(1); console.log(p.version)"
-            elif [ -f VERSION ]; then
+            if [ -f VERSION ]; then
               tr -d '[:space:]' < VERSION
             else
-              echo "Repository must contain package.json with version or VERSION." >&2
+              echo "Repository must contain a VERSION file." >&2
               exit 1
             fi
           }
           HEAD_VERSION=$(read_version)
-          if git cat-file -e "origin/${BASE_REF}:package.json" 2>/dev/null; then
-            BASE_VERSION=$(git show "origin/${BASE_REF}:package.json" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).version||''))")
-          elif git cat-file -e "origin/${BASE_REF}:VERSION" 2>/dev/null; then
+          if git cat-file -e "origin/${BASE_REF}:VERSION" 2>/dev/null; then
             BASE_VERSION=$(git show "origin/${BASE_REF}:VERSION" | tr -d '[:space:]')
           else
             BASE_VERSION=0.0.0

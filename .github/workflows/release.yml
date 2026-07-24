@@ -27,14 +27,11 @@ jobs:
         id: version
         run: |
           set -euo pipefail
-          if [ -f package.json ]; then
-            VERSION=$(node -e "const p=require('./package.json'); if (!p.version) process.exit(1); console.log(p.version)")
-          elif [ -f VERSION ]; then
-            VERSION=$(tr -d '[:space:]' < VERSION)
-          else
-            echo "Repository must contain package.json with version or VERSION." >&2
+          if [ ! -f VERSION ]; then
+            echo "Repository must contain a VERSION file." >&2
             exit 1
           fi
+          VERSION=$(tr -d '[:space:]' < VERSION)
           python3 - "${VERSION}" <<'PY'
           import re, sys
           if not re.fullmatch(r"(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", sys.argv[1]):
