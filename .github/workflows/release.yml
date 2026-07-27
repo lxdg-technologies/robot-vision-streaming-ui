@@ -83,6 +83,22 @@ jobs:
             type=raw,value=${{ steps.version.outputs.version }}
             type=raw,value=v${{ steps.version.outputs.version }}
             type=sha,prefix=
+      - name: Verify version is not already released
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          TAG="v${VERSION}"
+          git fetch --force --tags origin
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            TAGGED_COMMIT=$(git rev-list -n 1 "${TAG}")
+            if [ "${TAGGED_COMMIT}" != "$(git rev-parse HEAD)" ]; then
+              LATEST=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+              echo "::error::${TAG} was already released from commit ${TAGGED_COMMIT}. Highest released tag is ${LATEST}; bump VERSION above it and merge again."
+              exit 1
+            fi
+            echo "${TAG} already points at this commit; re-running the release is safe."
+          fi
       - name: Build and publish once
         id: build
         uses: docker/build-push-action@v6
